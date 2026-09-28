@@ -1,6 +1,4 @@
-# synthlite
-
-**Prompts in, a private fine-tuning dataset out.**
+<h1 align="center"><img src="docs/assets/readme-banner.png" alt="synthlite: prompts in, a private fine-tuning dataset out. A single static Rust binary." width="100%"></h1>
 
 A single static Rust binary · one teacher call per prompt · no LLM judge · crash-safe resume · any OpenAI-compatible endpoint
 
@@ -273,3 +271,5 @@ No. It builds the dataset. Use TRL, Axolotl, Unsloth, or your own trainer.
 synthlite is built by [Scogo AI](https://scogo.ai). We use it to build training data for Sia, which delivers Autonomous Agentic IT Operations. That is why the examples are about IT operations. Change the prompts and the persona to fit your domain.
 
 We plan to open-source Taskgen, Scogo's seed generator, next.
+
+Ferris the crab in the banner is by Karen Rustad Tölva and is in the public domain ([rustacean.net](https://rustacean.net/)).
