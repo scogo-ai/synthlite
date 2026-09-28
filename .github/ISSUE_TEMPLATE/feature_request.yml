@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a change to what synthlite does.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        synthlite stays small on purpose: one teacher call per prompt, no LLM judge, one static binary. Requests that fit that shape are the easiest to take. For open-ended ideas, start a [discussion](https://github.com/scogo-ai/synthlite/discussions) instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and where does synthlite get in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: The flag, config key, output, or behavior you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What you tried or considered instead.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you open a pull request for it?
+      options:
+        - "Yes"
+        - "Maybe, with guidance"
+        - "No"

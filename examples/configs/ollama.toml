@@ -1,0 +1,18 @@
+# A local Ollama server.
+#
+#   ollama pull qwen2.5:7b
+#   export OLLAMA_API_KEY=ollama                   # Ollama ignores it, but synthlite needs a non-empty value
+#   synthlite examples/prompts.txt --config examples/configs/ollama.toml --out out/ollama
+#
+# Ollama's default context window is small. Long prompts or replies then end
+# as "truncated". Raise it on the server, for example:
+#   OLLAMA_CONTEXT_LENGTH=32768 ollama serve
+
+[[key]]
+provider = "ollama"
+base_url = "http://localhost:11434/v1"
+model = "qwen2.5:7b"
+api_key_env = "OLLAMA_API_KEY"
+
+# A laptop or a single GPU serves few requests at once.
+max_concurrent = 2

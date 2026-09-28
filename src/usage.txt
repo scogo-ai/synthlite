@@ -1,0 +1,18 @@
+synthlite — prompts in, a private fine-tuning dataset out
+
+  synthlite prompts.jsonl        # generate: one teacher reply per prompt into ./out
+  synthlite prompts.txt          # or one plain prompt per line; rerun to resume
+  synthlite gate                 # filter ./out into data/train.jsonl, validation.jsonl
+  synthlite push --hf-repo your-org/your-private-dataset
+  synthlite --version
+
+  synthlite generate --help for every flag (also gate --help, push --help)
+
+prompts.jsonl: one {"prompt": "..."} per line; "id" and "metadata" are optional.
+
+  OPENAI_API_KEY                  required for generate
+  OPENAI_MODEL or SYNTHLITE_MODEL required; no default model
+  OPENAI_BASE_URL                 default https://api.openai.com/v1
+  HF_TOKEN                        required for push
+
+A different generator_config_hash refuses. Pass a new --out.

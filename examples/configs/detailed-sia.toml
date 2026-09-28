@@ -1,0 +1,27 @@
+# Decision traces with the Sia persona, on OpenRouter's free router.
+#
+#   export OPENROUTER_API_KEY=sk-or-...
+#   head -n 20 examples/prompts.jsonl > canary.jsonl
+#   synthlite canary.jsonl --config examples/configs/detailed-sia.toml --out out/sia-canary
+#
+# Every row starts with the system message:
+#   You are Sia by Scogo.AI, which delivers Autonomous Agentic IT Operations. Use supplied
+#   evidence, distinguish facts from hypotheses, prefer safe bounded actions, and include
+#   verification and recovery.
+# Put your own assistant's name in persona. See docs/decision-traces.md.
+#
+# Small free models may produce more invalid_trace rows than frontier
+# teachers. Run the 20-prompt canary above and read the traces first.
+
+[generation]
+detailed = true                      # same as --detailed; resume this out dir with this file
+persona = "Sia by Scogo.AI, which delivers Autonomous Agentic IT Operations"
+
+[[key]]
+provider = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+model = "openrouter/free"
+api_key_env = "OPENROUTER_API_KEY"
+require_model_match = false          # the router answers with the served model's id
+requests_per_minute = 20             # OpenRouter's free-tier limit
+max_concurrent = 4

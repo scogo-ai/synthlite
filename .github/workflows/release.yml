@@ -1,0 +1,76 @@
+name: Release binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x86_64
+            target: x86_64-unknown-linux-musl
+          - runner: ubuntu-24.04-arm
+            platform: linux-aarch64
+            target: aarch64-unknown-linux-musl
+          - runner: macos-15
+            platform: macos
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Install Rust targets
+        run: |
+          rustup target add ${{ matrix.target }}
+          if [ "${{ matrix.platform }}" = macos ]; then
+            rustup target add x86_64-apple-darwin
+          fi
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          cargo build --release --locked --target ${{ matrix.target }}
+          if [ "${{ matrix.platform }}" = macos ]; then
+            cp target/aarch64-apple-darwin/release/synthlite dist/synthlite-macos-arm64
+            cargo build --release --locked --target x86_64-apple-darwin
+            cp target/x86_64-apple-darwin/release/synthlite dist/synthlite-macos-x86_64
+          else
+            cp target/${{ matrix.target }}/release/synthlite dist/synthlite-${{ matrix.platform }}
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthlite-${{ matrix.platform }}
+          path: dist/synthlite-*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: synthlite-*
+          merge-multiple: true
+          path: dist
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          chmod +x dist/synthlite-*
+          (cd dist && sha256sum synthlite-* > SHA256SUMS)
+          # A semver pre-release tag (v0.3.0-rc.1) never becomes "Latest".
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --title "synthlite $GITHUB_REF_NAME" --generate-notes --verify-tag $prerelease

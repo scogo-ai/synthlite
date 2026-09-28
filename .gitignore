@@ -1,0 +1,11 @@
+/target
+.env
+runs/
+taskgen/
+out/
+*.log
+/graphify-out/
+/SHA256SUMS
+.claude/
+.env.*
+!.env.example
