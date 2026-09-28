@@ -5,7 +5,11 @@
 A single static Rust binary · one teacher call per prompt · no LLM judge · crash-safe resume · any OpenAI-compatible endpoint
 
 [![CI](https://github.com/scogo-ai/synthlite/actions/workflows/ci.yml/badge.svg)](https://github.com/scogo-ai/synthlite/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/scogo-ai/synthlite)](https://github.com/scogo-ai/synthlite/releases/latest)
+[![crates.io](https://img.shields.io/crates/v/synthlite?logo=rust&color=e43717)](https://crates.io/crates/synthlite)
+[![Release](https://img.shields.io/github/v/release/scogo-ai/synthlite?logo=github)](https://github.com/scogo-ai/synthlite/releases/latest)
+[![Rust 1.89+](https://img.shields.io/badge/rust-1.89%2B-f74c00?logo=rust)](https://www.rust-lang.org)
+[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS-4c1)](https://github.com/scogo-ai/synthlite/releases/latest)
+[![Demo datasets](https://img.shields.io/badge/%F0%9F%A4%97%20demo%20datasets-Hugging%20Face-ffcc4d)](https://huggingface.co/datasets/ScogoAI/synthlite-demo-itops-sft)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 ![synthlite generating 10 rows on OpenRouter's free router, interrupted and resumed with no duplicates, then gated and pushed to a private dataset](docs/assets/synthlite-demo.gif)
@@ -34,7 +38,8 @@ Other ways:
 
 - **Release binaries** for Linux (x86_64, aarch64; static) and macOS (arm64, x86_64): [releases page](https://github.com/scogo-ai/synthlite/releases/latest). Check them against `SHA256SUMS`.
 - **Docker:** `docker run --rm ghcr.io/scogo-ai/synthlite --version`
-- **From source** (Rust 1.89+): `cargo install --locked --git https://github.com/scogo-ai/synthlite`
+- **crates.io** (Rust 1.89+): `cargo install synthlite --locked`
+- **Latest source** (Rust 1.89+): `cargo install --locked --git https://github.com/scogo-ai/synthlite`
 
 ## Quickstart
 

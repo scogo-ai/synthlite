@@ -40,13 +40,13 @@ detect_asset() {
     case "$os" in
         Linux) os=linux ;;
         Darwin) os=macos ;;
-        *) die "no prebuilt binary for $os; build from source: cargo install --git https://github.com/$REPO --locked" ;;
+        *) die "no prebuilt binary for $os; build from source: cargo install synthlite --locked" ;;
     esac
 
     case "$arch" in
         x86_64 | amd64) arch=x86_64 ;;
         aarch64 | arm64) arch=aarch64 ;;
-        *) die "no prebuilt binary for $arch; build from source: cargo install --git https://github.com/$REPO --locked" ;;
+        *) die "no prebuilt binary for $arch; build from source: cargo install synthlite --locked" ;;
     esac
 
     if [ "$os" = macos ]; then
