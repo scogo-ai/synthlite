@@ -1,0 +1,17 @@
+# A frontier teacher through OpenRouter, for datasets you will train on.
+#
+#   export OPENROUTER_API_KEY=sk-or-...
+#   synthlite examples/prompts.jsonl --config examples/configs/openrouter-frontier.toml --out out/frontier --max-rows 20
+#   (read out/rows.jsonl, then run the same command without --max-rows to finish)
+#
+# synthlite has no LLM judge: every row is what the teacher wrote, filtered only
+# by the gate's rules. The teacher sets the quality ceiling, so use the
+# strongest model you can for a dataset you will train on.
+#
+# Paid models bill per token. Cap spend with --max-requests.
+
+[[key]]
+provider = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+model = "anthropic/claude-opus-5.5"  # or "openai/gpt-6-sol"
+api_key_env = "OPENROUTER_API_KEY"   # the variable NAME; the secret stays in the environment

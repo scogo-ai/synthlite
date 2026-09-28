@@ -143,6 +143,21 @@ max_concurrent = 4
 - Free models vary in quality. Read your rows before you train on them.
 - Free models also come with their own terms, and so do the services that host them. Some allow internal evaluation only; NVIDIA's API trial service, for example, forbids sharing its outputs. Check the terms of every model in `metadata.served_model` before you publish rows or train on them.
 
+### A frontier teacher on OpenRouter
+
+For a dataset you will train on. synthlite has no LLM judge, so the teacher sets the quality ceiling. Use [examples/configs/openrouter-frontier.toml](../examples/configs/openrouter-frontier.toml):
+
+```toml
+[[key]]
+provider = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+model = "anthropic/claude-opus-5.5"  # or "openai/gpt-6-sol"
+api_key_env = "OPENROUTER_API_KEY"
+```
+
+- A pinned model answers with its own id, so the default `require_model_match = true` stays on.
+- Paid models bill per token. Run a canary with `--max-rows 20` and cap the full run with `--max-requests`.
+
 ### vLLM
 
 Start a server, for example `vllm serve Qwen/Qwen2.5-7B-Instruct`. Then use [examples/configs/vllm.toml](../examples/configs/vllm.toml):

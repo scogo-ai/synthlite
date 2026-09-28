@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: the README says synthlite is written in Rust, adds a "Choosing a teacher" section (a frontier teacher for datasets you will train on, the free router for trying it), a design-philosophy table, and a "Where it fits" comparison with other synthetic-data tools.
+- New example config `examples/configs/openrouter-frontier.toml` for Claude Opus 5.5 or GPT-6-Sol through OpenRouter.
+
 ## [0.4.0] - 2026-09-28
 
 First public release. Earlier versions below were released privately at Scogo AI and are listed for context.

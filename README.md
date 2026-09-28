@@ -2,7 +2,7 @@
 
 **Prompts in, a private fine-tuning dataset out.**
 
-One static binary · one teacher call per prompt · no LLM judge · crash-safe resume · any OpenAI-compatible endpoint
+A single static Rust binary · one teacher call per prompt · no LLM judge · crash-safe resume · any OpenAI-compatible endpoint
 
 [![CI](https://github.com/scogo-ai/synthlite/actions/workflows/ci.yml/badge.svg)](https://github.com/scogo-ai/synthlite/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/scogo-ai/synthlite)](https://github.com/scogo-ai/synthlite/releases/latest)
@@ -14,7 +14,7 @@ One static binary · one teacher call per prompt · no LLM judge · crash-safe r
 
 ## What it does
 
-You give synthlite a file of prompts. It asks a teacher model for one reply per prompt, filters the replies with fixed rules, and uploads a private Hugging Face dataset.
+synthlite is a command-line tool written in Rust. You give it a file of prompts. It asks a teacher model for one reply per prompt, filters the replies with fixed rules, and uploads a private Hugging Face dataset.
 
 ```text
 prompts.jsonl ──generate──▶ out/rows.jsonl ──gate──▶ out/data/{train,validation}.jsonl ──push──▶ private HF dataset
@@ -36,9 +36,9 @@ Other ways:
 - **Docker:** `docker run --rm ghcr.io/scogo-ai/synthlite --version`
 - **From source** (Rust 1.89+): `cargo install --locked --git https://github.com/scogo-ai/synthlite`
 
-## Quickstart for $0
+## Quickstart
 
-This uses OpenRouter's free router, so the teacher costs nothing. Get a key at [openrouter.ai](https://openrouter.ai/) and a Hugging Face token with write access.
+Try it with OpenRouter's free router, so the teacher costs nothing. Get a key at [openrouter.ai](https://openrouter.ai/) and a Hugging Face token with write access. For a dataset you will train on, pick a stronger teacher: see [Choosing a teacher](#choosing-a-teacher).
 
 ```bash
 git clone --depth 1 https://github.com/scogo-ai/synthlite && cd synthlite   # for the examples
@@ -63,6 +63,25 @@ synthlite examples/prompts.jsonl --out out/openai
 ```
 
 Add `--dry-run` to any `generate` command to check the plan without a single provider call.
+
+## Choosing a teacher
+
+synthlite has no LLM-as-judge stage. Every row is what the teacher wrote, filtered only by the gate's rules, so the teacher sets the quality ceiling.
+
+| You want to | Use | Why |
+|---|---|---|
+| Try synthlite, test prompts and configs | OpenRouter's free router ([openrouter-free.toml](examples/configs/openrouter-free.toml)) or a local model on vLLM or Ollama | Costs nothing. Quality varies by request, and each free model has its own terms |
+| Build a dataset you will train on | A frontier model such as Claude Opus 5.5 or GPT-6-Sol ([openrouter-frontier.toml](examples/configs/openrouter-frontier.toml)) | No judge checks the answers afterwards, so the strongest teacher gives the best odds of correct, complete rows |
+
+```toml
+[[key]]
+provider = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+model = "anthropic/claude-opus-5.5"  # or "openai/gpt-6-sol"
+api_key_env = "OPENROUTER_API_KEY"
+```
+
+Run a canary first: add `--max-rows 20`, read `out/rows.jsonl`, then run the same command without it to finish. `--max-requests` caps spend.
 
 ## What you get
 
@@ -120,7 +139,7 @@ One row of `data/train.jsonl`:
 
 A real row from the demo dataset, with the prompt and the reply shortened here. `model` is what you asked for; `served_model` is the free model that answered.
 
-Browse the full demo datasets, made with the commands above for $0 on OpenRouter's free router: [IT-operations SFT](https://huggingface.co/datasets/ScogoAI/synthlite-demo-itops-sft) (25 prompts, 9 free models) and [decision traces with the Sia persona](https://huggingface.co/datasets/ScogoAI/synthlite-demo-itops-decision-traces).
+Browse the full demo datasets, made with the quickstart commands on OpenRouter's free router: [IT-operations SFT](https://huggingface.co/datasets/ScogoAI/synthlite-demo-itops-sft) (25 prompts, 9 free models) and [decision traces with the Sia persona](https://huggingface.co/datasets/ScogoAI/synthlite-demo-itops-decision-traces).
 <!-- /DEMO_ROW -->
 
 `messages` is the column TRL, Axolotl, Unsloth, and `datasets` load. `metadata` keeps lineage: your `id` and `metadata`, the requested model, the model that answered (`served_model`), token usage, and the time.
@@ -156,19 +175,45 @@ Treat this as incomplete graceful-restart recovery and verify end-of-RIB before 
 
 Name your assistant with `[generation].persona`. Scogo AI uses `persona = "Sia by Scogo.AI, which delivers Autonomous Agentic IT Operations"`; replace it with yours. The contract is tuned for IT operations. See [docs/decision-traces.md](docs/decision-traces.md) and [examples/configs/detailed-sia.toml](examples/configs/detailed-sia.toml).
 
-## Design in one screen
+## Design philosophy
 
-- **One call per seed.** One prompt, one teacher call, one row.
-- **Seeds in, dataset out.** You bring the prompts. synthlite does not write or review them.
-- **Deterministic gate, no judge.** Fixed rules, same output every time. Correctness is not checked.
-- **The committed row is the checkpoint.** A crash loses at most the rows in flight.
-- **Content-addressed identity.** A prompt's id is a hash of its text. Add prompts and only the new ones run.
-- **One static binary.** No runtime, no database, no plugins.
-- **Any OpenAI-compatible endpoint.** Hosted or local. Several keys can pool.
-- **Private and quiet by default.** Private repos only. Keys, prompts, and replies never reach stderr.
-- **Training-shaped output.** `messages` rows that trainers load directly.
+synthlite makes one teacher call per prompt and keeps everything around that call boring and reliable. Each choice trades breadth for speed, cost, and a result you can reproduce.
 
-Each principle and its cost: [docs/design.md](docs/design.md).
+| Principle | What it means | What you give up |
+|---|---|---|
+| One call per prompt | Each prompt gets exactly one teacher call and one row. Retries only for timeouts, 5xx, and rate limits | Best-of-K selection. Quality rides on the teacher and the prompt |
+| Prompts in, dataset out | You bring the prompts. synthlite never writes, paraphrases, or evolves them | Built-in prompt synthesis |
+| Deterministic gate, no judge | Rows are filtered by explainable rules: exact dedup, length, refusal phrases, repeated lines, held-out prompts. Same input, same output | Correctness checks. The dataset card says replies are unverified |
+| The committed row is the checkpoint | One writer appends and fsyncs each row. Kill it anytime and rerun the same command to resume | Distributed workers. One process per output folder |
+| Content-addressed identity | A prompt's id is a hash of the prompt, and the generation settings are hashed too. One output folder holds one config | Changing a generation setting needs a new output folder |
+| One static Rust binary | About 7 MB. No Python environment, no services, no database, no GPU | A plugin system or Python API |
+| Any OpenAI-compatible endpoint | Hosted APIs or local servers, several keys pooled, adaptive concurrency, hard spend caps | Provider-native and batch APIs |
+| Private and quiet by default | Pushes only to private Hugging Face repos. Keys, prompts, and replies never reach logs | One-command public releases |
+| Training-shaped output | Chat `messages` rows that TRL, Axolotl, Unsloth, and `datasets` load as-is. `--detailed` adds decision traces | DPO pairs, multi-turn data, other formats |
+
+Each principle in more depth: [docs/design.md](docs/design.md).
+
+## Where it fits
+
+Most open-source synthetic-data tools are Python frameworks or apps that also write the prompts, run multi-step pipelines, or score the data with a model. synthlite does one narrow job: you already have prompts, and you want one good answer to each, as a clean dataset, from a single binary.
+
+| Tool | What it is | Runtime | Judge or scoring | How synthlite differs |
+|---|---|---|---|---|
+| **synthlite** | CLI that turns prompts you already have into an SFT dataset, one call per prompt | One static Rust binary | None. Fixed rules: dedup, length, refusals, repeated lines | |
+| [distilabel](https://github.com/argilla-io/distilabel) | Framework for synthetic data and AI feedback, built from research-paper tasks | Python | Built-in judge tasks such as UltraFeedback, added as pipeline steps | No pipelines, prompt evolution, or AI feedback. Pick distilabel for preference (DPO) data |
+| [Curator](https://github.com/bespokelabsai/curator) | SDK for bulk inference and data curation | Python | None built in; you can add one as another LLM call | Closest in spirit. Curator gives structured outputs, batch APIs, and code control; synthlite needs no code |
+| [NeMo Data Designer](https://github.com/NVIDIA-NeMo/DataDesigner) | Builds datasets column by column from samplers, LLM columns, and optional seed data | Python library and CLI | Optional LLM-judge columns and validators | synthlite doesn't design or sample fields. Pick Data Designer when you don't have prompts yet |
+| [synthetic-data-kit](https://github.com/meta-llama/synthetic-data-kit) | CLI that turns documents into Q&A and chain-of-thought data | Python CLI | Optional `curate` step: an LLM rates each pair from 1 to 10 | synthlite doesn't parse documents or write questions. Pick it when your source is PDFs or web pages |
+| [Kiln](https://github.com/Kiln-AI/Kiln) | App and library for building AI products: evals, synthetic data, fine-tuning | Desktop app and Python library | LLM-judge evals, run separately; people review synthetic data in the app | synthlite is headless and only generates. Pick Kiln for a GUI with evals and fine-tuning in one place |
+| [Easy Dataset](https://github.com/ConardLi/easy-dataset) | App that turns documents into fine-tuning, RAG, and eval datasets | JavaScript desktop app, npm, or Docker | Optional AI quality scoring that you trigger | No GUI or document chunking in synthlite. Pick Easy Dataset for document-to-Q&A with visual review |
+| [DataDreamer](https://github.com/datadreamer-dev/DataDreamer) | Library for prompting, synthetic data, and training workflows | Python | Optional filter, rank, and judge steps | synthlite is not a workflow or training library. Pick DataDreamer for reproducible research pipelines |
+| [DeepFabric](https://github.com/nolabs-ai/deepfabric) | Reasoning and tool-calling data from topic trees, for agents | Python; tools run in a sandbox | Schema validation; no LLM judge documented | synthlite writes no topics or tool traces. Pick DeepFabric for agent data |
+| [Oumi](https://github.com/oumi-ai/oumi) | Platform for the whole model lifecycle; `oumi synth` is one feature | Python | A separate `oumi judge` command | synthlite is one generation step. Pick Oumi for synthesis, judging, and training in one stack |
+| [DataFlow](https://github.com/OpenDCAI/DataFlow) | Operator pipelines that generate, refine, evaluate, and filter data | Python, Docker, web UI | Evaluator and filter operators, including LLM judges | synthlite's gate is fixed rules. Pick DataFlow for multi-stage cleaning and scoring |
+
+**Choose synthlite** when you already have prompts, want a dataset by morning, and want it to run in CI, cron, or a locked-down box without Python or a GPU. **Choose one of the others** when you need prompt synthesis, documents as input, multi-turn or preference data, or model-scored filtering.
+
+<sub>Checked against each project's README and docs in September 2026. If a row is out of date, please open an issue or a pull request.</sub>
 
 ## Providers
 
@@ -176,6 +221,7 @@ Each principle and its cost: [docs/design.md](docs/design.md).
 |---|---|
 | OpenAI | `OPENAI_API_KEY` and `OPENAI_MODEL`, or [openai.toml](examples/configs/openai.toml) |
 | OpenRouter free router | [openrouter-free.toml](examples/configs/openrouter-free.toml) |
+| A frontier model on OpenRouter | [openrouter-frontier.toml](examples/configs/openrouter-frontier.toml) |
 | vLLM | [vllm.toml](examples/configs/vllm.toml) |
 | Ollama | [ollama.toml](examples/configs/ollama.toml) |
 
@@ -221,4 +267,4 @@ No. It builds the dataset. Use TRL, Axolotl, Unsloth, or your own trainer.
 
 synthlite is built by [Scogo AI](https://scogo.ai). We use it to build training data for Sia, which delivers Autonomous Agentic IT Operations. That is why the examples are about IT operations. Change the prompts and the persona to fit your domain.
 
-Taskgen, Scogo's seed generator, will be open-sourced too.
+We plan to open-source Taskgen, Scogo's seed generator, next.
