@@ -8,6 +8,10 @@ One static binary · one teacher call per prompt · no LLM judge · crash-safe r
 [![Release](https://img.shields.io/github/v/release/scogo-ai/synthlite)](https://github.com/scogo-ai/synthlite/releases/latest)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+![synthlite generating 10 rows on OpenRouter's free router, interrupted and resumed with no duplicates, then gated and pushed to a private dataset](docs/assets/synthlite-demo.gif)
+
+<sub>Ten prompts on OpenRouter's free router: interrupt, resume without duplicates, gate, private push. Waits for replies are cut; the timestamps show real time.</sub>
+
 ## What it does
 
 You give synthlite a file of prompts. It asks a teacher model for one reply per prompt, filters the replies with fixed rules, and uploads a private Hugging Face dataset.
@@ -48,6 +52,8 @@ synthlite push --hf-repo you/my-first-sft
 1. `synthlite examples/prompts.jsonl ...` generates 25 IT-operations replies into `./out`. Every company, host, and address in `examples/` is fictional. If it stops, run the same command again. It resumes. Exit code 4 means some prompts failed; see [docs/running.md](docs/running.md).
 2. `synthlite gate` filters and splits. Read `out/rejected.jsonl` and `out/README.md` before you publish.
 3. `synthlite push` creates a **private** dataset repo and uploads it.
+
+Before you publish rows or train on them, check the terms of each model that answered. The free router picks a model per request, and some free endpoints allow internal evaluation only; NVIDIA's API trial service, for example, forbids sharing its outputs. `metadata.served_model` names the model behind every row.
 
 With OpenAI instead, no config file is needed:
 

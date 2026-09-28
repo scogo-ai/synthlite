@@ -100,7 +100,7 @@ Each `[[key]]` table is one endpoint and credential. Any `[[key]]` table replace
 | `license_name`, `license_link` | omitted | Written only when `license = "other"` |
 | `language` | `["en"]` | Language codes |
 
-Pick the license with care. The teacher provider's terms may limit how you use its outputs.
+Pick the license with care. The teacher provider's terms may limit how you use its outputs. With a router, each row can come from a different model under different terms; `metadata.served_model` names it.
 
 ## Provider recipes
 
@@ -141,6 +141,7 @@ max_concurrent = 4
 - `requests_per_minute = 20` matches OpenRouter's free-tier limit. OpenRouter also caps free requests per day. Check their current limits.
 - A key that hits the daily cap gets repeated 429s and is parked. Wait, then run again with `--resume-parked-keys`.
 - Free models vary in quality. Read your rows before you train on them.
+- Free models also come with their own terms, and so do the services that host them. Some allow internal evaluation only; NVIDIA's API trial service, for example, forbids sharing its outputs. Check the terms of every model in `metadata.served_model` before you publish rows or train on them.
 
 ### vLLM
 
