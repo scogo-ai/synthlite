@@ -1,0 +1,47 @@
+[package]
+name = "synthlite"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.89"
+description = "Prompts in, a private fine-tuning dataset out: one teacher call per prompt, no LLM judge, crash-safe resume, one static binary."
+license = "Apache-2.0"
+authors = ["Scogo AI"]
+repository = "https://github.com/scogo-ai/synthlite"
+homepage = "https://github.com/scogo-ai/synthlite"
+readme = "README.md"
+keywords = ["llm", "synthetic-data", "fine-tuning", "dataset", "huggingface"]
+categories = ["command-line-utilities", "science"]
+# Run output, local seed checkouts, build products, and repo tooling never
+# ship in the crate.
+exclude = [
+    "runs/",
+    "taskgen/",
+    "out/",
+    "target/",
+    ".claude/",
+    "*.log",
+    "/SHA256SUMS",
+    "/.github/",
+    "/Dockerfile",
+    "/.dockerignore",
+    "/install.sh",
+]
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+eventsource-stream = "0.2"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "io-util", "net"] }
+toml = "0.8"
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
+wiremock = "0.6"

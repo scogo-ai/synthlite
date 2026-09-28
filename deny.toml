@@ -1,0 +1,54 @@
+# cargo-deny policy for synthlite. CI runs `cargo deny check`.
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Check the dependency graph for every target the release builds ship on.
+targets = [
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+]
+all-features = false
+no-default-features = false
+
+[advisories]
+# Every RUSTSEC advisory (vulnerability, unmaintained, unsound, yanked) fails
+# the check unless it is listed here with a reason.
+ignore = []
+
+[licenses]
+# Permissive licenses only. Each entry is a license actually present in the
+# dependency graph; add a new one here only after checking it is compatible
+# with Apache-2.0 distribution.
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.93
+exceptions = []
+
+[licenses.private]
+ignore = false
+
+[bans]
+# Duplicate versions are common in the async ecosystem; report, don't fail.
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+# crates.io only: no git dependencies, no other registries.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

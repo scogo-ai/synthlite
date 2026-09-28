@@ -1,0 +1,90 @@
+# synthlite.toml — annotated example. Every field is shown once.
+#
+# Copy it next to your prompts and edit:
+#   cp examples/synthlite.toml ./synthlite.toml
+#
+# Every table is optional. With no file at all, synthlite uses one key built
+# from OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL and the defaults below.
+# Precedence: flags > environment > this file > built-in defaults.
+# Unknown tables or fields exit 2, so typos fail fast.
+# Ready-made provider files are in examples/configs/.
+
+# ---------------------------------------------------------------------------
+# [generation] — what is sent to the model. Every field here is part of
+# generator_config_hash, so changing one after a run has started means a new
+# --out directory. Omitted fields are not sent to the provider.
+# ---------------------------------------------------------------------------
+[generation]
+temperature = 0.2
+# top_p = 0.95
+# seed = 7
+# frequency_penalty = 0.0
+# presence_penalty = 0.0
+# stop = ["</answer>"]
+# reasoning_effort = "medium"
+# system_message = "You are a senior network operations engineer."
+
+# Decision traces, same as --detailed: still one call per prompt.
+# The system message is fixed, so leave system_message unset. Turning this
+# on or off after a run has started means a new --out.
+# detailed = true
+# persona names the assistant in the detailed system message. It needs detailed = true.
+# persona = "Sia by Scogo.AI, which delivers Autonomous Agentic IT Operations"
+
+# Output-token cap. Leave it out to use the implicit budget: 32768, stepped
+# down to 16384 / 8192 / 4096 if the provider rejects it with HTTP 400.
+# Setting it sends exactly this value and never steps down.
+# max_output_tokens = 8192
+
+# ---------------------------------------------------------------------------
+# [[key]] — the provider pool. Any [[key]] table replaces the env key:
+# OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL are then ignored.
+# api_key_env holds the NAME of an environment variable, never the secret.
+# Several keys pool: each prompt still gets exactly one row.
+# ---------------------------------------------------------------------------
+
+# A self-hosted vLLM (or any OpenAI-compatible) endpoint.
+[[key]]
+provider = "vllm"
+base_url = "http://localhost:8000/v1"
+model = "Qwen/Qwen2.5-7B-Instruct"
+api_key_env = "VLLM_API_KEY"        # vLLM without --api-key accepts any non-empty value
+max_concurrent = 8                  # ceiling for in-flight requests (default 16, halves on 429)
+
+# A hosted provider, with every transport knob at its default.
+# [[key]]
+# provider = "groq"
+# base_url = "https://api.groq.com/openai/v1"
+# model = "llama-3.3-70b-versatile"
+# api_key_env = "GROQ_API_KEY"
+# max_concurrent = 16               # adaptive: 429 halves it, clean answers grow it back
+# requests_per_minute = 30          # default: no client-side cap
+# timeout_seconds = 600             # idle: longest gap between streamed chunks, not the whole reply
+# max_attempts = 5                  # retries for timeouts, 5xx, 408, 425
+# rate_limit_cooldown_seconds = 60  # 429 without Retry-After
+# headerless_429_limit = 3          # consecutive header-less 429s before parking
+# max_tokens_field = "max_tokens"   # default: max_completion_tokens on api.openai.com, else max_tokens
+# require_model_match = true        # response model must match (dated snapshots allowed); false for routers
+# require_finish_reason = true
+
+# ---------------------------------------------------------------------------
+# [gate] — filters applied before publishing. Values shown are the defaults.
+# ---------------------------------------------------------------------------
+[gate]
+min_assistant_chars = 200
+max_assistant_chars = 40000
+max_repeated_line = 4               # a line of >= 20 chars repeated more often is rejected
+refusal_window_chars = 300
+validation_per_mille = 30           # 0..=1000, split by source_task_id
+# refusal_phrases = ["i'm sorry, but i can't", "as an ai language model"]   # replaces the default list
+# exclude_prompt_hashes = "holdout-prompt-hashes.txt"
+
+# ---------------------------------------------------------------------------
+# [card] — Hugging Face dataset card metadata. All optional.
+# ---------------------------------------------------------------------------
+# [card]
+# pretty_name = "IT Ops SFT"
+# license = "other"
+# license_name = "my-org-internal"
+# license_link = "https://example.com/licenses/internal"
+# language = ["en"]

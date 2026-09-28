@@ -1,0 +1,8 @@
+What does the BGP neighbor state "Active" mean, and what are the usual causes on a Cisco router?
+Why would an OSPF adjacency stay in EXSTART, and how do I confirm an MTU mismatch?
+How should I size a DHCP scope and lease time for a guest Wi-Fi network with 400 short-stay users?
+What is the difference between 802.1X and MAB for network access control, and when should I use each?
+How do I check which certificates a web server sends in its TLS chain, using openssl?
+Which Windows commands show where a domain controller gets its time, and how do I fix a DC that uses the local CMOS clock?
+What should a good postmortem include, and how do I keep it blameless?
+How do I write a Prometheus alert that predicts a disk will be full within four hours?

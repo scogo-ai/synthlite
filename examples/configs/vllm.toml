@@ -1,0 +1,28 @@
+# A self-hosted vLLM server.
+#
+#   vllm serve Qwen/Qwen2.5-7B-Instruct            # listens on port 8000
+#   export VLLM_API_KEY=local                      # any non-empty value if the server has no --api-key
+#   synthlite examples/prompts.jsonl --config examples/configs/vllm.toml --out out/vllm
+#
+# List the models the server exposes:
+#   curl -s http://localhost:8000/v1/models
+
+[[key]]
+provider = "vllm"
+base_url = "http://localhost:8000/v1"
+model = "Qwen/Qwen2.5-7B-Instruct"   # must match the served model name
+api_key_env = "VLLM_API_KEY"
+
+# Set this near the number of sequences your server batches well.
+# Going above it can make each request slower.
+max_concurrent = 8
+
+# Idle timeout: the longest gap between streamed chunks, not the whole reply.
+# A healthy stream sends many chunks per second, so this only fires on a stall.
+timeout_seconds = 300
+
+# The default output cap is 32768. If prompt plus cap exceeds the server's
+# context length, the server answers HTTP 400 and synthlite steps the cap down
+# once per run. To pin a cap instead (this changes the hash; use a new --out):
+# [generation]
+# max_output_tokens = 8192

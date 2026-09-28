@@ -1,0 +1,14 @@
+# The image build only needs Cargo.toml, Cargo.lock, and src/.
+# Keep secrets, run output, and build products out of the build context.
+.git
+.github
+.claude
+.env
+.env.*
+target/
+runs/
+taskgen/
+out/
+graphify-out/
+*.log
+SHA256SUMS

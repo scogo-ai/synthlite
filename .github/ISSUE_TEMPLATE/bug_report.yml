@@ -1,0 +1,78 @@
+name: Bug report
+description: synthlite did something wrong or refused something it should accept.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security problems go to the private channel in [SECURITY.md](https://github.com/scogo-ai/synthlite/blob/main/SECURITY.md), not here.
+
+        **Remove API keys, tokens, and private prompts before you paste anything.** synthlite never prints secrets, but config files and shell history can hold them.
+  - type: input
+    id: version
+    attributes:
+      label: synthlite version
+      description: Output of `synthlite --version`.
+      placeholder: synthlite 0.4.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - install.sh
+        - Release binary downloaded by hand
+        - Docker image
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and architecture
+      placeholder: Ubuntu 24.04 x86_64, macOS 15 arm64, ...
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Teacher endpoint
+      description: Which OpenAI-compatible server or provider, and the model. No keys or private hostnames needed.
+      placeholder: vLLM 0.11 serving Qwen3, OpenRouter, OpenAI, ...
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran, and the config file if you used one (redacted).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: The stderr output and exit code. Include the first line (it has the version) and the last lines.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Smallest input that reproduces it
+      description: A few seed lines that trigger the problem, if you can share them.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed API keys, tokens, and private prompts from everything above.
+          required: true
+        - label: I searched existing issues for this problem.
+          required: true

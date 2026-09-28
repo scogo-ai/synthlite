@@ -1,0 +1,29 @@
+# OpenRouter's free router: $0 per token.
+#
+#   export OPENROUTER_API_KEY=sk-or-...
+#   synthlite examples/prompts.jsonl --config examples/configs/openrouter-free.toml
+#
+# openrouter/free sends each request to one of the free models behind the
+# router, so two rows may come from two different models. Each row records
+# the requested model in metadata.model and the model that answered in
+# metadata.served_model.
+#
+# OpenRouter also caps free requests per day. When the cap is hit, the key
+# gets repeated 429s and is parked. Wait, then run the same command again
+# with --resume-parked-keys.
+
+[[key]]
+provider = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+model = "openrouter/free"
+api_key_env = "OPENROUTER_API_KEY"   # the variable NAME; the secret stays in the environment
+
+# The router answers with the served model's id, not "openrouter/free".
+# Without this line every reply would fail as model_mismatch.
+require_model_match = false
+
+# OpenRouter's free-tier limit is 20 requests per minute.
+requests_per_minute = 20
+
+# A few requests in flight is enough at 20 per minute.
+max_concurrent = 4
