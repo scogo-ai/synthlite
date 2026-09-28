@@ -8,6 +8,11 @@
 # the requested model in metadata.model and the model that answered in
 # metadata.served_model.
 #
+# Each free model comes with its own terms, and so does its host. Some allow
+# internal evaluation only (NVIDIA's API trial service forbids sharing its
+# outputs, for example). Check the terms of every model in served_model
+# before you publish rows or train on them.
+#
 # OpenRouter also caps free requests per day. When the cap is hit, the key
 # gets repeated 429s and is parked. Wait, then run the same command again
 # with --resume-parked-keys.

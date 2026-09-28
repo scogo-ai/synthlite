@@ -12,3 +12,4 @@ out/
 graphify-out/
 *.log
 SHA256SUMS
+docs/assets/

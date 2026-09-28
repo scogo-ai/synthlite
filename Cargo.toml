@@ -22,6 +22,7 @@ exclude = [
     "*.log",
     "/SHA256SUMS",
     "/.github/",
+    "/docs/assets/",
     "/Dockerfile",
     "/.dockerignore",
     "/install.sh",
