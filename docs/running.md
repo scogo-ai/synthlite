@@ -7,7 +7,7 @@ This page covers what a run prints, how to resume it, how to cap spend, and what
 Everything goes to stderr, one `key=value` line per event. It reads the same in a terminal, under `nohup`, or in a log file. Prompts, replies, and keys are never printed.
 
 ```text
-model=openrouter/free base=openrouter.ai out=./out seeds=25 start pending=25 complete=0 failed=0 dropped=0 version=0.4.0
+model=openrouter/free base=openrouter.ai out=./out seeds=25 start pending=25 complete=0 failed=0 dropped=0 version=0.4.1
 28-09-26:10:00:30 progress requests=4 committed=0/25 in_flight=4 queued=21 failed=0 retry=0 tok_s=? input_tokens=0 output_tokens=0 elapsed=30s finish_in=?
 retry task_5b01d2e9a4c0 try=1/5 reason=timeout backoff=1s
 28-09-26:10:05:00 progress requests=19 committed=14/25 in_flight=4 queued=7 failed=0 retry=1 tok_s=48.2 input_tokens=5210 output_tokens=14460 elapsed=5m00s finish_in=3m40s
@@ -121,9 +121,17 @@ synthlite gate --out out/local
 synthlite push --out out/local --hf-repo your-org/itops-sft-local
 ```
 
-`[generation]`, `--detailed`, and the persona are hashed into `generator_config_hash`. If you change any of them, the old out dir refuses with exit 2. Pass a new `--out`.
+`[generation]` and the persona are hashed into `generator_config_hash`, and every row records the hash it was written under. You can change the `[generation]` settings, the config file, the model, the endpoint, or the gate on the same out dir, and the run picks up where it stopped. This is how you finish a long run when the original model goes away:
 
-`[[key]]`, `[gate]`, and `[card]` are not hashed. You can change the model, the endpoint, or the gate on the same out dir. Each row records its own teacher.
+```bash
+synthlite tasks.jsonl --out runs/big --config old-model.toml            # 80 of 100 done, the rest failed
+synthlite tasks.jsonl --out runs/big --config new-model.toml --retry-failed
+# config_change resuming under a new [generation] config (max_output_tokens: 32768 -> 65536; ...); rows already written keep their own generator_config_hash
+```
+
+Synthlite prints one `config_change` line listing the fields that changed, moves the old config into `state.json` `config_history`, and keeps every committed row as it is. `gate` accepts rows from every recorded config, and the manifest lists them in `generator_config_history`. Each row records its own teacher, so a dataset can hold rows from several models. To keep one config per dataset, use a new `--out`.
+
+The one refusal left is a `--detailed` switch: adding or dropping it changes the shape of every row, so the old out dir exits 2. Pass a new `--out` for that.
 
 ## Exit codes
 
@@ -145,7 +153,7 @@ synthlite push --out out/local --hf-repo your-org/itops-sft-local
 | `unsupported schema_version <v>` | Remove `schema_version` from prompt records. Only the two Taskgen versions are accepted |
 | `duplicate prompt (same prompt as line N)` | The same prompt appears twice. Remove one copy |
 | `duplicate source_task_id <id>` | The same Taskgen task appears twice. Remove one copy |
-| `generator_config_hash does not match ./out; pass a new --out` | You changed `[generation]` or the system prompt. Use a new `--out` |
+| `config_change resuming under a new [generation] config (...)` | Not an error. You changed the config on a resume; earlier rows keep their old hash |
 | `./out was generated with --detailed; rerun with --detailed or pass a new --out` | Add `--detailed` to resume it, or use a new `--out` for a plain run |
 | `./out was generated without --detailed; ...` | Remove `--detailed` and `detailed = true` to resume it, or use a new `--out` |
 | `--detailed uses a fixed system message; ...` | Unset `SYNTHLITE_SYSTEM_PROMPT` and `[generation].system_message`. Use `persona` to name the assistant |

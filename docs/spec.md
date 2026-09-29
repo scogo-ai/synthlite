@@ -1,6 +1,6 @@
 # synthlite specification
 
-**Version:** 0.4.0
+**Version:** 0.4.1
 **Scope:** prompts to a private fine-tuning dataset
 **Binary:** `synthlite`
 **Implementation:** small Rust core
@@ -95,7 +95,7 @@ A complete line in `rows.jsonl` already proves its work item completed, and resu
 
 ### Resume fingerprint
 
-`source_task_id` is the SHA-256 of the identity bytes, so "same id, different identity bytes" cannot happen. Resume compares the id set of the current input against committed and failed keys and reports additions and drops. The only refusal is a `generator_config_hash` that differs from `state.json` or from any committed row.
+`source_task_id` is the SHA-256 of the identity bytes, so "same id, different identity bytes" cannot happen. Resume compares the id set of the current input against committed and failed keys and reports additions and drops. A `generator_config_hash` that differs from `state.json` does not refuse: see section 10. The one refusal is a `--detailed` mode switch, or a committed row whose hash is neither the current one nor in `config_history`.
 
 ### Failed work on resume
 
@@ -417,7 +417,7 @@ The teacher that served a row is not in the hash. It is recorded per row as `met
 (source_task_id, variant_index, generator_config_hash)
 ```
 
-There is one variant. `variant_index` is always 0 and is still part of the key. A different `generator_config_hash` is a different key. One output directory holds one hash. Any key in the pool may serve any pending work item, and each seed gets exactly one row regardless of which key served it. A directory whose `state.json` hash, or any committed row's `generator_config_hash`, differs from the current config refuses the run. The operator passes a new `--out`, or, when the mismatch is a `--detailed` mode switch, reruns in the directory's mode (section 14). `--resume` does not accept the mismatch. A matching hash resumes with no extra flag. Committed lines are never rewritten. Model, base URL, and API key are not in the hash.
+There is one variant. `variant_index` is always 0 and is still part of the key. A different `generator_config_hash` is a different key. `state.json` holds the current hash and `config_history` holds earlier ones; each row keeps its own. Any key in the pool may serve any pending work item, and each seed gets exactly one row regardless of which key served it. A directory whose state hash differs from the current config resumes and records the change (section 10). It refuses only for a `--detailed` mode switch (the operator reruns in the directory's mode, section 14, or passes a new `--out`) or a committed row whose hash is unknown to `state.json`. Committed lines are never rewritten. Model, base URL, and API key are not in the hash.
 
 ## 9. Output contract
 
@@ -590,13 +590,14 @@ Written atomically (temp file in `DIR`, fsync, rename, fsync directory) when it 
   "seed_count": 5000,
   "created_at": "2026-09-22T09:00:00Z",
   "generation_complete": false,
+  "config_history": [],
   "parked_keys": [{"key": "groq/GROQ_API_KEY/llama-3.3-70b-versatile@https://api.groq.com/openai/v1", "reason": "headerless_429", "at": "..."}]
 }
 ```
 
 A key id is `<provider>/<api_key_env>/<model>@<base_url>`, with `base_url` as in `metadata.base_url`. The env key is `openai/OPENAI_API_KEY/<model>@<base_url>`. Reordering `[[key]]` entries does not move parked state. The `parked <id> <reason>` stderr line prints the id with `base_url` reduced to `host[:port]`, for example `parked groq/GROQ_API_KEY/llama-3.3-70b-versatile@api.groq.com unauthorized`; the full id is only in `state.json`. A parked id that matches no configured key is dropped the next time parked state is written. `reason` is `headerless_429` or `unauthorized`.
 
-`generator_config` is the object hashed in section 8. `source_population_sha256`, `taskgen_run_id`, and `seed_count` are refreshed at every non-dry-run preflight. `generation_complete` is false when the directory is created and whenever a preflight finds a pending or failed id. It becomes true only when every current input id is committed, and the process writes that before exit 0. A kill after the last row fsync and before that write leaves it false; the next `generate` sees no pending id, makes no provider call, and sets it. The flag is not a second copy of the committed keys; those stay the lines in `rows.jsonl`. `gate` and `push` refuse while it is false, so a crash at 3200 of 5000 cannot be published.
+`generator_config` is the object hashed in section 8. `config_history` is omitted while empty; each entry is `{generator_config_hash, generator_config, superseded_at}`. `source_population_sha256`, `taskgen_run_id`, and `seed_count` are refreshed at every non-dry-run preflight. `generation_complete` is false when the directory is created and whenever a preflight finds a pending or failed id. It becomes true only when every current input id is committed, and the process writes that before exit 0. A kill after the last row fsync and before that write leaves it false; the next `generate` sees no pending id, makes no provider call, and sets it. The flag is not a second copy of the committed keys; those stay the lines in `rows.jsonl`. `gate` and `push` refuse while it is false, so a crash at 3200 of 5000 cannot be published.
 
 ### Resume rules
 
@@ -605,14 +606,15 @@ A key id is `<provider>/<api_key_env>/<model>@<base_url>`, with `base_url` as in
 - The directory does not exist: create it and start.
 - The directory exists and is not a synthlite run: start. An empty directory starts.
 - The directory is a synthlite run and `generator_config_hash` matches: resume. `--resume` is not required. A crash at 3200 of 5000 committed rows continues when the operator runs the same command again.
-- The directory is a synthlite run and the hash differs from the current config, or any committed row carries a different `generator_config_hash`: exit 2, before any provider call. Tell the operator to pass a new `--out`. When `state.json` shows a `--detailed` mode switch, the message names the mode instead (section 14). `--resume` is the wrong flag for this case.
+- The directory is a synthlite run and the hash differs from the current config: resume anyway. The run prints `config_change resuming under a new [generation] config (<field: old -> new; ...>)`, moves the previous `generator_config_hash` and `generator_config` into `state.json` `config_history` (oldest first, each with `superseded_at`), and makes the current config the run's config. Committed rows are not rewritten and keep the hash they were written under. This lets an operator finish a run after the original model or settings stop being usable. Returning to an earlier config removes it from the history and current becomes that one.
+- The same, but a `--detailed` mode switch, or a committed row whose hash is neither the current one nor in `config_history`: exit 2, before any provider call. Tell the operator to pass a new `--out`. For the mode switch the message names the mode (section 14).
 
 `--resume` is a strict alias for the matching-hash path, so a script can demand an existing run. It exits 2 when the directory is missing (`<out> does not exist; --resume does not create a directory`), when the directory is not a synthlite run (`<out> is not a synthlite run; --resume requires an existing run`), or when the hash mismatches. On a matching run it is the same resume as the automatic path.
 
 On a start or a matching resume, before any provider call:
 
 1. Repair torn tails as above.
-2. Refuse if `state.json` exists and its `generator_config_hash` differs from the current config, or if any committed row carries a different `generator_config_hash`.
+2. Refuse if the current config is a `--detailed` mode switch from `state.json`, or if any committed row carries a hash that is neither the current one nor in `config_history`. A plain hash difference resumes and is recorded (section 10).
 3. Scan `rows.jsonl`; the set of committed keys is the set of `source_task_id` values present.
 4. Scan `rows.errors.jsonl`; a key is failed when it has at least one error record and no committed row.
 5. Compute the current input's id set.
@@ -960,11 +962,11 @@ The raw URL is never echoed. Userinfo (`https://user:pass@host/...`) is stripped
 
 ### Directory rule
 
-The same rule as section 10. A missing directory is created and the run starts. An existing directory that contains neither `rows.jsonl` nor `state.json` starts. A path that exists and is not a directory exits 2 (`<out> is not a directory`). A synthlite run whose `generator_config_hash` matches resumes with no extra flag, so a crash at 3200 of 5000 continues when the same command is run again. A hash mismatch exits 2 before any provider call and tells the operator to pass a new `--out`. When `state.json` shows a mode switch, the message names the mode:
+The same rule as section 10. A missing directory is created and the run starts. An existing directory that contains neither `rows.jsonl` nor `state.json` starts. A path that exists and is not a directory exits 2 (`<out> is not a directory`). A synthlite run whose `generator_config_hash` matches resumes with no extra flag, so a crash at 3200 of 5000 continues when the same command is run again. A hash difference resumes and is recorded in `config_history`; only a mode switch (below) or an unknown row hash exits 2 before any provider call. When `state.json` shows a mode switch, the message names the mode:
 
 - `state.json` has `"detailed": true` and the current config is plain: `<out> was generated with --detailed; rerun with --detailed or pass a new --out`
 - `state.json` has no `detailed` and the current config is detailed: `<out> was generated without --detailed; remove --detailed and [generation].detailed, or pass a new --out`
-- any other mismatch: `generator_config_hash does not match <out>; pass a new --out`
+- a committed row whose hash is neither the current one nor in `config_history`: `generator_config_hash does not match <out>; pass a new --out`
 
 Without the first message, an operator who reruns a crashed `--detailed` run without the flag would be told to start a new out dir, which would start a plain run. `--resume` does not accept the mismatch. `--resume` also exits 2 when the directory is missing or is not a synthlite run. It does not create a directory.
 
@@ -1241,7 +1243,7 @@ head -n 20 path/to/prompts.jsonl > canary.jsonl
 synthlite canary.jsonl --detailed --out out/detailed-canary
 ```
 
-`generate` is safe to interrupt. Running the same command again resumes when `generator_config_hash` matches and skips committed rows. `--resume` is optional on that path and errors when the directory is empty or the hash mismatches. `gate` and `push` run only when `generation_complete` is true. `push` runs `gate` when `data/train.jsonl` is missing.
+`generate` is safe to interrupt. Running the same command again resumes and skips committed rows, also under a changed `[generation]` config (recorded in `config_history`). `--resume` is optional on that path and errors when the directory is empty. `gate` and `push` run only when `generation_complete` is true. `push` runs `gate` when `data/train.jsonl` is missing.
 
 ## 20. References
 

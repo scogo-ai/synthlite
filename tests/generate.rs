@@ -2063,3 +2063,109 @@ async fn detailed_prompt_records_render_a_trace() {
     assert_eq!(read_state(dir.path())["generator_config"]["detailed"], true);
     server.verify().await;
 }
+
+#[tokio::test]
+async fn resume_under_a_changed_generation_config_keeps_history_and_gates() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .and(body_string_contains("first seed"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(stop_body(&common::long_reply("one"))),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .and(body_string_contains("second seed"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(2)
+        .expect(2)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .and(body_string_contains("second seed"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(stop_body(&common::long_reply("two"))),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("tasks.jsonl"),
+        format!(
+            "{}\n{}\n",
+            common::task_line("first seed"),
+            common::task_line("second seed")
+        ),
+    )
+    .unwrap();
+    let toml = |cap: u32| {
+        format!(
+            "[generation]\nmax_output_tokens = {cap}\n{}",
+            key_toml(&server.uri(), "max_attempts = 2\nmax_concurrent = 1")
+        )
+    };
+    fs::write(dir.path().join("a.toml"), toml(4096)).unwrap();
+    fs::write(dir.path().join("b.toml"), toml(8192)).unwrap();
+    let key_env = [("OPENAI_API_KEY", "sk-test")];
+    let first = common::run(
+        dir.path(),
+        &["tasks.jsonl", "--out", "out", "--config", "a.toml"],
+        &key_env,
+        Duration::from_secs(20),
+    );
+    assert_eq!(first.code, 4, "{}", first.stderr);
+    let old_hash = read_state(dir.path())["generator_config_hash"].clone();
+
+    let second = common::run(
+        dir.path(),
+        &[
+            "tasks.jsonl",
+            "--out",
+            "out",
+            "--config",
+            "b.toml",
+            "--retry-failed",
+        ],
+        &key_env,
+        Duration::from_secs(20),
+    );
+    assert_eq!(second.code, 0, "{}", second.stderr);
+    assert!(second.stderr.contains("config_change"), "{}", second.stderr);
+    assert!(
+        second.stderr.contains("max_output_tokens: 4096 -> 8192"),
+        "{}",
+        second.stderr
+    );
+    let state = read_state(dir.path());
+    assert_eq!(state["generation_complete"], true);
+    assert_ne!(state["generator_config_hash"], old_hash);
+    assert_eq!(
+        state["config_history"][0]["generator_config_hash"],
+        old_hash
+    );
+    let rows = fs::read_to_string(dir.path().join("out/rows.jsonl")).unwrap();
+    let hashes: std::collections::HashSet<_> = rows
+        .lines()
+        .map(|line| {
+            serde_json::from_str::<Value>(line).unwrap()["generator_config_hash"].to_string()
+        })
+        .collect();
+    assert_eq!(
+        hashes.len(),
+        2,
+        "each row keeps the hash it was written under"
+    );
+
+    let gate = common::run(
+        dir.path(),
+        &["gate", "--out", "out"],
+        &[],
+        Duration::from_secs(10),
+    );
+    assert_eq!(gate.code, 0, "{}", gate.stderr);
+    server.verify().await;
+}

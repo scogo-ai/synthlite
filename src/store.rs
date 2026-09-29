@@ -33,6 +33,81 @@ pub struct State {
     pub generation_complete: bool,
     #[serde(default)]
     pub parked_keys: Vec<ParkedKey>,
+    /// Earlier `[generation]` configs of this run, oldest first. Rows keep the
+    /// hash they were written under; a resume under a new config moves the
+    /// previous one here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub config_history: Vec<ConfigEpoch>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigEpoch {
+    pub generator_config_hash: String,
+    pub generator_config: Value,
+    pub superseded_at: String,
+}
+
+impl State {
+    /// True when rows written under `hash` belong to this run.
+    pub fn accepts(&self, hash: &str) -> bool {
+        self.generator_config_hash == hash
+            || self
+                .config_history
+                .iter()
+                .any(|epoch| epoch.generator_config_hash == hash)
+    }
+
+    /// Makes `hash` the current config. The previous one is kept in
+    /// `config_history`. Returns the changed fields, empty when nothing changed.
+    pub fn adopt_config(&mut self, hash: &str, config: &Value, at: &str) -> Vec<String> {
+        if self.generator_config_hash == hash {
+            self.generator_config = config.clone();
+            return Vec::new();
+        }
+        let changes = config_changes(&self.generator_config, config);
+        self.config_history
+            .retain(|epoch| epoch.generator_config_hash != hash);
+        self.config_history.push(ConfigEpoch {
+            generator_config_hash: std::mem::replace(
+                &mut self.generator_config_hash,
+                hash.to_string(),
+            ),
+            generator_config: std::mem::replace(&mut self.generator_config, config.clone()),
+            superseded_at: at.to_string(),
+        });
+        changes
+    }
+}
+
+/// One `field: old -> new` entry per top-level key that differs. Long strings
+/// (the system message) are shown as changed, not quoted.
+fn config_changes(old: &Value, new: &Value) -> Vec<String> {
+    let show = |value: Option<&Value>| match value {
+        Some(Value::String(text)) if text.len() > 40 => "<text>".to_string(),
+        Some(value) => value.to_string(),
+        None => "null".to_string(),
+    };
+    let mut keys: Vec<&String> = Vec::new();
+    for value in [old, new] {
+        if let Some(map) = value.as_object() {
+            for key in map.keys() {
+                if !keys.contains(&key) {
+                    keys.push(key);
+                }
+            }
+        }
+    }
+    keys.sort();
+    keys.into_iter()
+        .filter(|key| old.get(key.as_str()) != new.get(key.as_str()))
+        .map(|key| {
+            format!(
+                "{key}: {} -> {}",
+                show(old.get(key.as_str())),
+                show(new.get(key.as_str()))
+            )
+        })
+        .collect()
 }
 
 pub struct Scan {
@@ -71,14 +146,14 @@ pub fn is_synthlite_run(dir: &Path) -> bool {
     dir.join("state.json").is_file() || dir.join("rows.jsonl").is_file()
 }
 
-/// Refuses an out dir generated under another config. `detailed` is the
-/// current mode; when `state.json` shows the other mode, the message names it.
-pub fn assert_hash(dir: &Path, hash: &str, detailed: bool) -> Result<()> {
+/// Checks that an out dir can be resumed under the current config. A different
+/// `[generation]` config is allowed: it returns `true`, and the caller records
+/// the switch with `State::adopt_config`. Only a `--detailed` mode switch
+/// refuses, because it changes the shape of every row. `detailed` is the
+/// current mode.
+pub fn assert_resumable(dir: &Path, hash: &str, detailed: bool) -> Result<bool> {
     let state = read_state(dir)?;
-    let mismatch = || match &state {
-        Some(state) => mode_mismatch(dir, state, detailed),
-        None => hash_mismatch(dir),
-    };
+    let mut changed = false;
     if let Some(state) = &state {
         if state.schema_version != STATE_SCHEMA {
             return Err(Error::refuse(format!(
@@ -87,7 +162,8 @@ pub fn assert_hash(dir: &Path, hash: &str, detailed: bool) -> Result<()> {
             )));
         }
         if state.generator_config_hash != hash {
-            return Err(mismatch());
+            mode_check(dir, state, detailed)?;
+            changed = true;
         }
     }
     for (index, line) in complete_lines(&dir.join("rows.jsonl"))?
@@ -105,11 +181,15 @@ pub fn assert_hash(dir: &Path, hash: &str, detailed: bool) -> Result<()> {
             .get("generator_config_hash")
             .and_then(Value::as_str)
             .unwrap_or("");
-        if row_hash != hash {
-            return Err(mismatch());
+        let known = match &state {
+            Some(state) => row_hash == hash || state.accepts(row_hash),
+            None => row_hash == hash,
+        };
+        if !known {
+            return Err(hash_mismatch(dir));
         }
     }
-    Ok(())
+    Ok(changed)
 }
 
 pub fn hash_mismatch(dir: &Path) -> Error {
@@ -119,18 +199,18 @@ pub fn hash_mismatch(dir: &Path) -> Error {
     ))
 }
 
-fn mode_mismatch(dir: &Path, state: &State, detailed: bool) -> Error {
+fn mode_check(dir: &Path, state: &State, detailed: bool) -> Result<()> {
     let was_detailed = state.generator_config.get("detailed") == Some(&Value::Bool(true));
     match (was_detailed, detailed) {
-        (true, false) => Error::refuse(format!(
+        (true, false) => Err(Error::refuse(format!(
             "{} was generated with --detailed; rerun with --detailed or pass a new --out",
             dir.display()
-        )),
-        (false, true) => Error::refuse(format!(
+        ))),
+        (false, true) => Err(Error::refuse(format!(
             "{} was generated without --detailed; remove --detailed and [generation].detailed, or pass a new --out",
             dir.display()
-        )),
-        _ => hash_mismatch(dir),
+        ))),
+        _ => Ok(()),
     }
 }
 

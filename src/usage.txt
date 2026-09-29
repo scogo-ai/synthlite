@@ -15,4 +15,4 @@ prompts.jsonl: one {"prompt": "..."} per line; "id" and "metadata" are optional.
   OPENAI_BASE_URL                 default https://api.openai.com/v1
   HF_TOKEN                        required for push
 
-A different generator_config_hash refuses. Pass a new --out.
+A changed config or model resumes the same --out. Switching --detailed refuses.

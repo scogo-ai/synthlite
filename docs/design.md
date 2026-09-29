@@ -115,7 +115,7 @@ Each stage reads only files on disk. You can stop after any stage and inspect th
 | served model | The model id the provider reported for a reply. Behind a router it differs from the requested model |
 | row | One committed line of `rows.jsonl`: `messages` plus `metadata` |
 | out dir | The directory given by `--out` (default `./out`). It holds one run's rows, state, and dataset files |
-| `generator_config_hash` | A hash of everything that shapes a reply: sampling settings, system message, and `--detailed`. One out dir holds one hash |
+| `generator_config_hash` | A hash of everything that shapes a reply: sampling settings, system message, and `--detailed`. Rows keep the hash they were written under; a resume under a new config is recorded in `state.json` |
 | gate | The deterministic filter and splitter between generate and push |
 | card | The dataset's `README.md` on Hugging Face: counts, teachers, gate summary, and lineage |
 | canary | A small first run, such as 20 prompts on its own out dir, to check a teacher before a full run |

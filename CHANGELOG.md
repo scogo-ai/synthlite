@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-30
+
+### Changed
+
+- Resume under a changed config. Rerunning an out dir with a different `[generation]` config, config file, or model now resumes instead of exiting 2 with `generator_config_hash does not match`. Synthlite prints a `config_change` line with the changed fields, moves the previous config into `state.json` `config_history`, and keeps every committed row unchanged with the hash it was written under. `gate` accepts rows from every recorded config, and the manifest gets `generator_config_history`. This unblocks a long run whose original model is no longer available: rerun with the new config and `--retry-failed`. Watch for: a dataset can now mix rows from several `[generation]` configs. Use a new `--out` to keep one config per dataset.
+- Still refused: adding or dropping `--detailed` on an existing out dir, and a committed row whose hash is not in `state.json`.
+
 ### Changed
 
 - Docs: the README says synthlite is written in Rust, adds a "Choosing a teacher" section (a frontier teacher for datasets you will train on, the free router for trying it), a design-philosophy table, and a "Where it fits" comparison with other synthetic-data tools.
@@ -116,5 +123,6 @@ Published as release candidates `v0.3.0-rc.1` and `v0.3.0-rc.2`.
 
 - First release: one teacher call per seed against any OpenAI-compatible chat API, crash-safe resume keyed on a hash of the generation config, `gate` to filter rows, and `push` to a private Hugging Face dataset.
 
-[Unreleased]: https://github.com/scogo-ai/synthlite/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/scogo-ai/synthlite/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/scogo-ai/synthlite/releases/tag/v0.4.1
 [0.4.0]: https://github.com/scogo-ai/synthlite/releases/tag/v0.4.0

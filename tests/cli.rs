@@ -228,7 +228,7 @@ fn dry_run_rejects_malformed_curriculum() {
 }
 
 #[test]
-fn hash_mismatch_on_default_out_exits_2() {
+fn detailed_switch_on_existing_out_exits_2() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join("tasks.jsonl"),
@@ -243,7 +243,7 @@ fn hash_mismatch_on_default_out_exits_2() {
             "schema_version": "synthlite.state.v1",
             "synthlite_version": "0.1.0",
             "generator_config_hash": "gen_deadbeef",
-            "generator_config": {},
+            "generator_config": {"detailed": true},
             "source_population_sha256": "abc",
             "taskgen_run_id": null,
             "seed_count": 1,
