@@ -264,7 +264,7 @@ fn parse_row(bytes: &[u8], line_no: usize, state: &State) -> Result<ParsedRow> {
         )));
     }
     let hash = req_string(&value, "generator_config_hash", line_no)?;
-    if hash != state.generator_config_hash {
+    if !state.accepts(&hash) {
         return Err(Error::refuse(format!(
             "rows.jsonl:{line_no}: generator_config_hash does not match state.json"
         )));
@@ -476,6 +476,8 @@ struct Manifest {
     synthlite_version: String,
     generator_config_hash: String,
     generator_config: Value,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    generator_config_history: Vec<store::ConfigEpoch>,
     gate_config_hash: String,
     gate_config: Value,
     source: ManifestSource,
@@ -572,6 +574,7 @@ fn build_manifest(
         synthlite_version: state.synthlite_version.clone(),
         generator_config_hash: state.generator_config_hash.clone(),
         generator_config: state.generator_config.clone(),
+        generator_config_history: state.config_history.clone(),
         gate_config_hash: gate_hash.to_string(),
         gate_config: gate_value.clone(),
         source: ManifestSource {

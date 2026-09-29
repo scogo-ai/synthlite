@@ -153,13 +153,15 @@ pub async fn run(opts: GenerateOpts) -> Result<()> {
         )));
     }
     let resuming = is_run;
-    if resuming {
-        store::assert_hash(
+    let config_changed = if resuming {
+        store::assert_resumable(
             &opts.out,
             &loaded.generator_config_hash,
             loaded.generation.get("detailed") == Some(&Value::Bool(true)),
-        )?;
-    }
+        )?
+    } else {
+        false
+    };
 
     let scan = if resuming {
         store::scan(&opts.out)?
@@ -255,8 +257,17 @@ pub async fn run(opts: GenerateOpts) -> Result<()> {
         existing.source_population_sha256 = preflight.population_sha256.clone();
         existing.taskgen_run_id = preflight.taskgen_run_id.clone();
         existing.seed_count = preflight.seeds.len() as u64;
-        existing.generator_config = loaded.generation.clone();
-        existing.generator_config_hash = loaded.generator_config_hash.clone();
+        let changes = existing.adopt_config(
+            &loaded.generator_config_hash,
+            &loaded.generation,
+            &timefmt::utc_now(),
+        );
+        if config_changed {
+            eprintln!(
+                "config_change resuming under a new [generation] config ({}); rows already written keep their own generator_config_hash",
+                changes.join("; ")
+            );
+        }
         if opts.resume_parked_keys {
             existing.parked_keys.clear();
         }
@@ -273,6 +284,7 @@ pub async fn run(opts: GenerateOpts) -> Result<()> {
             created_at: timefmt::utc_now(),
             generation_complete: false,
             parked_keys: Vec::new(),
+            config_history: Vec::new(),
         }
     };
 

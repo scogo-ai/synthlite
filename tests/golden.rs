@@ -170,5 +170,5 @@ fn usage_is_the_eighteen_line_contract() {
         synthlite::USAGE.contains("set OPENAI_MODEL or SYNTHLITE_MODEL")
             || synthlite::USAGE.contains("OPENAI_MODEL or SYNTHLITE_MODEL")
     );
-    assert!(synthlite::USAGE.contains("Pass a new --out."));
+    assert!(synthlite::USAGE.contains("Switching --detailed refuses."));
 }

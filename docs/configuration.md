@@ -38,7 +38,7 @@ It has four tables. All are optional. [examples/synthlite.toml](../examples/synt
 
 | Table | Purpose | Changing it needs a new `--out`? |
 |---|---|---|
-| `[generation]` | What is sent to the model | Yes. It is hashed into `generator_config_hash` |
+| `[generation]` | What is sent to the model | Yes. It is hashed into `generator_config_hash`; changing it on a resume is allowed and recorded |
 | `[[key]]` | Where requests go, and how fast | No |
 | `[gate]` | Filters and the validation split | No |
 | `[card]` | Dataset card metadata | No |

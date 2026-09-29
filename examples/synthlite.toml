@@ -11,8 +11,8 @@
 
 # ---------------------------------------------------------------------------
 # [generation] — what is sent to the model. Every field here is part of
-# generator_config_hash, so changing one after a run has started means a new
-# --out directory. Omitted fields are not sent to the provider.
+# generator_config_hash. You can change them when you resume a run: rows
+# already written keep their own hash. Omitted fields are not sent to the provider.
 # ---------------------------------------------------------------------------
 [generation]
 temperature = 0.2
@@ -26,7 +26,7 @@ temperature = 0.2
 
 # Decision traces, same as --detailed: still one call per prompt.
 # The system message is fixed, so leave system_message unset. Turning this
-# on or off after a run has started means a new --out.
+# on or off after a run has started means a new --out (the one change a resume refuses).
 # detailed = true
 # persona names the assistant in the detailed system message. It needs detailed = true.
 # persona = "Sia by Scogo.AI, which delivers Autonomous Agentic IT Operations"
