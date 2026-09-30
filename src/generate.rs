@@ -14,6 +14,7 @@ use crate::provider::{self, Attempt};
 use crate::store::{self, Appender, ParkedKey, State};
 use crate::timefmt;
 
+#[derive(Clone)]
 pub struct GenerateOpts {
     /// Input file: JSONL (prompt records, Taskgen tasks or candidates) or a
     /// `.txt` file with one prompt per line.
@@ -23,6 +24,9 @@ pub struct GenerateOpts {
     pub resume: bool,
     pub dry_run: bool,
     pub retry_failed: bool,
+    /// `--retry-until-finish`: after a pass that leaves failures, run up to
+    /// `UNTIL_FINISH_ROUNDS` more retry passes, then explain what still fails.
+    pub retry_until_finish: bool,
     pub resume_parked_keys: bool,
     /// `--detailed`: decision-trace rows (see `docs/decision-traces.md`).
     /// `[generation].detailed` can also turn it on.
@@ -31,6 +35,116 @@ pub struct GenerateOpts {
     pub max_rows: Option<u64>,
     /// Heartbeat period for `progress` lines; `None` disables them.
     pub progress_interval: Option<Duration>,
+}
+
+/// Extra retry passes `--retry-until-finish` makes after the first pass.
+pub const UNTIL_FINISH_ROUNDS: u32 = 3;
+
+/// Pause before retry round `n` is `n * this`. `SYNTHLITE_RETRY_ROUND_PAUSE_SECS`
+/// overrides it (tests set 0).
+const ROUND_PAUSE_SECS: u64 = 30;
+
+/// `generate::run` in a loop: fire and forget. Only exit 4 (some work items
+/// failed) starts another round; a refusal, a stop, or an unexpected error
+/// returns at once, because more rounds cannot fix those.
+pub async fn run_until_finish(opts: GenerateOpts) -> Result<()> {
+    if !opts.retry_until_finish || opts.dry_run {
+        return run(opts).await;
+    }
+    let pause = std::env::var("SYNTHLITE_RETRY_ROUND_PAUSE_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(ROUND_PAUSE_SECS);
+    let mut round = 0u32;
+    loop {
+        let mut pass = opts.clone();
+        pass.retry_failed = true;
+        match run(pass).await {
+            Err(Error::Failed(message)) => {
+                if round >= UNTIL_FINISH_ROUNDS {
+                    failure_summary(&opts.out);
+                    return Err(Error::failed(format!(
+                        "{message} after {UNTIL_FINISH_ROUNDS} retry rounds; fix the cause above, then rerun with --retry-failed"
+                    )));
+                }
+                round += 1;
+                let wait = pause * u64::from(round);
+                eprintln!(
+                    "retry_round {round}/{UNTIL_FINISH_ROUNDS} {message}; starting in {wait}s"
+                );
+                tokio::time::sleep(Duration::from_secs(wait)).await;
+            }
+            other => return other,
+        }
+    }
+}
+
+/// Prints why work items are still failed: one line per (class, status, model)
+/// with a count, a few task ids, and what to do. Reads `rows.errors.jsonl`
+/// only; it never prints prompts or replies.
+fn failure_summary(out: &Path) {
+    let Ok(scan) = store::scan(out) else { return };
+    let mut latest: std::collections::BTreeMap<String, Value> = Default::default();
+    let Ok(lines) = store::complete_lines(&out.join("rows.errors.jsonl")) else {
+        return;
+    };
+    for line in lines {
+        if let Ok(value) = serde_json::from_slice::<Value>(line.trim_ascii_end()) {
+            if let Some(id) = value.get("source_task_id").and_then(Value::as_str) {
+                if scan.failed_attempts.contains_key(id) {
+                    latest.insert(id.to_string(), value);
+                }
+            }
+        }
+    }
+    let mut groups: std::collections::BTreeMap<(String, String, String), Vec<String>> =
+        Default::default();
+    for (id, record) in &latest {
+        let text = |key: &str| {
+            record
+                .get(key)
+                .map(|v| {
+                    v.as_str()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| v.to_string())
+                })
+                .unwrap_or_default()
+        };
+        groups
+            .entry((text("error_class"), text("http_status"), text("model")))
+            .or_default()
+            .push(id.clone());
+    }
+    eprintln!(
+        "failure_summary still_failed={} groups={}",
+        latest.len(),
+        groups.len()
+    );
+    for ((class, status, model), ids) in &groups {
+        let sample: Vec<&str> = ids.iter().take(3).map(String::as_str).collect();
+        eprintln!(
+            "failure class={class} status={status} model={model} count={} examples={} next={}",
+            ids.len(),
+            sample.join(","),
+            failure_hint(class)
+        );
+    }
+}
+
+fn failure_hint(class: &str) -> &'static str {
+    match class {
+        "truncated" => "raise [generation].max_output_tokens or use a model that stops sooner",
+        "retries_exhausted" | "timeout" => {
+            "check the provider is reachable, or lower max_concurrent"
+        }
+        "invalid_request" => "the provider rejects the request; check the model id and token field",
+        "model_mismatch" => "set require_model_match = false or fix the model id",
+        "invalid_trace" => "try another teacher for --detailed",
+        "refusal" | "empty_assistant" => {
+            "the teacher declined or returned nothing; try another model"
+        }
+        _ => "read rows.errors.jsonl",
+    }
 }
 
 struct WorkItem {

@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-30
+
+### Added
+
+- `--retry-until-finish` on `generate`. For unattended runs: after a pass that leaves failed prompts, synthlite waits 30s, 60s, 90s and retries them, up to 3 retry rounds. It exits 0 when every prompt is committed. If some still fail it prints `failure_summary` and a `failure class=... status=... model=... count=... examples=... next=...` line per cause, then exits 4. `--retry-failed` is unchanged and still the way to retry by hand. Refusals, `--max-requests` and `--max-rows` stops, and parked keys exit at once.
+
 ## [0.4.1] - 2026-09-30
 
 ### Changed
@@ -123,6 +129,7 @@ Published as release candidates `v0.3.0-rc.1` and `v0.3.0-rc.2`.
 
 - First release: one teacher call per seed against any OpenAI-compatible chat API, crash-safe resume keyed on a hash of the generation config, `gate` to filter rows, and `push` to a private Hugging Face dataset.
 
-[Unreleased]: https://github.com/scogo-ai/synthlite/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/scogo-ai/synthlite/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/scogo-ai/synthlite/releases/tag/v0.4.2
 [0.4.1]: https://github.com/scogo-ai/synthlite/releases/tag/v0.4.1
 [0.4.0]: https://github.com/scogo-ai/synthlite/releases/tag/v0.4.0

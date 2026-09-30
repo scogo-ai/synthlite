@@ -57,6 +57,9 @@ struct GenerateArgs {
     /// Send prompts that failed in an earlier run again
     #[arg(long)]
     retry_failed: bool,
+    /// Retry failed prompts up to 3 more rounds until all finish, then say what still fails
+    #[arg(long)]
+    retry_until_finish: bool,
     /// Use keys parked by an earlier run (unauthorized, repeated 429s) again
     #[arg(long)]
     resume_parked_keys: bool,
@@ -135,13 +138,14 @@ pub fn run() -> std::result::Result<(), Exit> {
 async fn dispatch(cmd: Command) -> crate::error::Result<()> {
     match cmd {
         Command::Generate(args) => {
-            generate::run(GenerateOpts {
+            generate::run_until_finish(GenerateOpts {
                 input: args.input,
                 out: args.common.out,
                 config: args.common.config,
                 resume: args.resume,
                 dry_run: args.dry_run,
                 retry_failed: args.retry_failed,
+                retry_until_finish: args.retry_until_finish,
                 resume_parked_keys: args.resume_parked_keys,
                 detailed: args.detailed,
                 max_requests: args.max_requests,

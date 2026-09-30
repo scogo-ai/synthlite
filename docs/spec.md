@@ -1,6 +1,6 @@
 # synthlite specification
 
-**Version:** 0.4.1
+**Version:** 0.4.2
 **Scope:** prompts to a private fine-tuning dataset
 **Binary:** `synthlite`
 **Implementation:** small Rust core
@@ -99,7 +99,7 @@ A complete line in `rows.jsonl` already proves its work item completed, and resu
 
 ### Failed work on resume
 
-A failed work item stays failed across process restarts. Resume does not call the provider for it. `--retry-failed` returns failed items to pending and spends again, with a fresh `max_attempts` budget for that run. A resumed run prints the failed count.
+`--retry-until-finish` wraps `generate` in up to 3 extra rounds of `--retry-failed`, each after a pause of 30s times the round number (`SYNTHLITE_RETRY_ROUND_PAUSE_SECS` overrides the 30), and only when a pass exits 4. Exit 2, 3 and 1 return at once. After the last round it prints a `failure_summary` and one `failure` line per (`error_class`, `http_status`, `model`) from `rows.errors.jsonl`, then exits 4. A failed work item stays failed across process restarts. Resume does not call the provider for it. `--retry-failed` returns failed items to pending and spends again, with a fresh `max_attempts` budget for that run. A resumed run prints the failed count.
 
 ### System prompt
 
@@ -909,7 +909,7 @@ Subcommands are `generate`, `gate`, and `push`. There are no other subcommands, 
 
 | Subcommand | Flags |
 |---|---|
-| `generate <input>` | `--out DIR`, `--config PATH`, `--resume`, `--dry-run`, `--retry-failed`, `--resume-parked-keys`, `--detailed`, `--max-requests N`, `--max-rows N`, `--progress-interval SECONDS` (default 30, `0` turns it off) |
+| `generate <input>` | `--out DIR`, `--config PATH`, `--resume`, `--dry-run`, `--retry-failed`, `--retry-until-finish`, `--resume-parked-keys`, `--detailed`, `--max-requests N`, `--max-rows N`, `--progress-interval SECONDS` (default 30, `0` turns it off) |
 | `gate` | `--out DIR`, `--config PATH` |
 | `push` | `--out DIR`, `--config PATH`, `--hf-repo OWNER/NAME`, `--hf-republish` |
 
