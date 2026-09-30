@@ -7,7 +7,7 @@ This page covers what a run prints, how to resume it, how to cap spend, and what
 Everything goes to stderr, one `key=value` line per event. It reads the same in a terminal, under `nohup`, or in a log file. Prompts, replies, and keys are never printed.
 
 ```text
-model=openrouter/free base=openrouter.ai out=./out seeds=25 start pending=25 complete=0 failed=0 dropped=0 version=0.4.1
+model=openrouter/free base=openrouter.ai out=./out seeds=25 start pending=25 complete=0 failed=0 dropped=0 version=0.4.2
 28-09-26:10:00:30 progress requests=4 committed=0/25 in_flight=4 queued=21 failed=0 retry=0 tok_s=? input_tokens=0 output_tokens=0 elapsed=30s finish_in=?
 retry task_5b01d2e9a4c0 try=1/5 reason=timeout backoff=1s
 28-09-26:10:05:00 progress requests=19 committed=14/25 in_flight=4 queued=7 failed=0 retry=1 tok_s=48.2 input_tokens=5210 output_tokens=14460 elapsed=5m00s finish_in=3m40s
@@ -71,12 +71,14 @@ The out dir is the checkpoint. A row is committed only when its full line is on 
 synthlite prompts.jsonl                        # resumes ./out automatically
 synthlite prompts.jsonl --resume               # same, but refuses if ./out is not a matching run
 synthlite prompts.jsonl --retry-failed         # spend again on prompts in rows.errors.jsonl
+synthlite prompts.jsonl --retry-until-finish   # fire and forget: up to 3 more retry rounds
 synthlite prompts.jsonl --resume-parked-keys   # un-park keys parked on 401/403 or repeated 429
 ```
 
 - After Ctrl-C, a crash, or a cap, run the same command again. Committed rows are never regenerated.
 - A torn last line after a crash is moved to `rows.partial`, and that prompt runs again.
 - Failed prompts stay failed until `--retry-failed`. Each gets a fresh retry budget.
+- `--retry-until-finish` is for unattended runs. Whenever a pass ends with failed prompts (exit 4), it waits 30s, 60s, then 90s and retries them, up to 3 retry rounds, so a run started fresh gets at most 4 passes. It prints `retry_round N/3` before each round. It exits 0 when everything is committed. If prompts still fail after round 3 it prints a `failure_summary` and one `failure class=... status=... model=... count=... examples=<task ids> next=<what to do>` line per cause, then exits 4. Fix the cause and rerun with `--retry-failed`. It does not replace `--retry-failed`, and it does not retry a refusal, a `--max-requests` or `--max-rows` stop, or parked keys: those exit at once.
 - Parked keys stay parked until `--resume-parked-keys`.
 - A `--detailed` out dir resumes only with `--detailed` again, or with `detailed = true` in the config.
 

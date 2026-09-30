@@ -1325,7 +1325,7 @@ dependencies = [
 
 [[package]]
 name = "synthlite"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "base64",

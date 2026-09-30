@@ -436,7 +436,7 @@ fn repair_torn(path: &Path, partial: &Path) -> Result<bool> {
     Ok(true)
 }
 
-fn complete_lines(path: &Path) -> Result<Vec<Vec<u8>>> {
+pub fn complete_lines(path: &Path) -> Result<Vec<Vec<u8>>> {
     if !path.is_file() {
         return Ok(Vec::new());
     }

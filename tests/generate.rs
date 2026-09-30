@@ -2169,3 +2169,103 @@ async fn resume_under_a_changed_generation_config_keeps_history_and_gates() {
     assert_eq!(gate.code, 0, "{}", gate.stderr);
     server.verify().await;
 }
+
+#[tokio::test]
+async fn retry_until_finish_completes_after_transient_failures() {
+    let server = MockServer::start().await;
+    // Two attempts per pass: passes 1 and 2 fail, the third pass succeeds.
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(4)
+        .expect(4)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(stop_body(&common::long_reply("until finish"))),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("tasks.jsonl"),
+        format!("{}\n", common::task_line("until finish seed")),
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("synthlite.toml"),
+        key_toml(&server.uri(), "max_attempts = 2\nmax_concurrent = 1"),
+    )
+    .unwrap();
+    let run = common::run(
+        dir.path(),
+        &["tasks.jsonl", "--out", "out", "--retry-until-finish"],
+        &[
+            ("OPENAI_API_KEY", "sk-test"),
+            ("SYNTHLITE_RETRY_ROUND_PAUSE_SECS", "0"),
+        ],
+        Duration::from_secs(60),
+    );
+    assert_eq!(run.code, 0, "{}", run.stderr);
+    assert!(run.stderr.contains("retry_round 1/3"), "{}", run.stderr);
+    assert!(run.stderr.contains("retry_round 2/3"), "{}", run.stderr);
+    assert!(!run.stderr.contains("failure_summary"), "{}", run.stderr);
+    assert_eq!(read_state(dir.path())["generation_complete"], true);
+    server.verify().await;
+}
+
+#[tokio::test]
+async fn retry_until_finish_stops_after_three_rounds_and_says_why() {
+    let server = MockServer::start().await;
+    // One initial pass plus three retry rounds, two attempts each.
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(ResponseTemplate::new(503))
+        .expect(8)
+        .mount(&server)
+        .await;
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("tasks.jsonl"),
+        format!("{}\n", common::task_line("never finishes seed")),
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("synthlite.toml"),
+        key_toml(&server.uri(), "max_attempts = 2\nmax_concurrent = 1"),
+    )
+    .unwrap();
+    let run = common::run(
+        dir.path(),
+        &["tasks.jsonl", "--out", "out", "--retry-until-finish"],
+        &[
+            ("OPENAI_API_KEY", "sk-test"),
+            ("SYNTHLITE_RETRY_ROUND_PAUSE_SECS", "0"),
+        ],
+        Duration::from_secs(60),
+    );
+    assert_eq!(run.code, 4, "{}", run.stderr);
+    assert!(run.stderr.contains("retry_round 3/3"), "{}", run.stderr);
+    assert!(!run.stderr.contains("retry_round 4/3"), "{}", run.stderr);
+    assert!(
+        run.stderr.contains("failure_summary still_failed=1"),
+        "{}",
+        run.stderr
+    );
+    assert!(
+        run.stderr
+            .contains("failure class=retries_exhausted status=503"),
+        "{}",
+        run.stderr
+    );
+    assert!(
+        run.stderr.contains("rerun with --retry-failed"),
+        "{}",
+        run.stderr
+    );
+    server.verify().await;
+}
